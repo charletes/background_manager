@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod logic;
-mod mac;
+mod os_level;
 
 #[derive(Parser)]
 #[command(name = "background_manager")]

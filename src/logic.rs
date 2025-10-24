@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::mac;
+use crate::os_level;
 
 pub fn change_background(args: &[String]) {
     // Check if we have the required file parameter
@@ -39,7 +39,7 @@ pub fn change_background(args: &[String]) {
     println!("Selected: {}", file_path.display());
 
     // Get the number of monitors
-    let monitor_count = match mac::get_monitor_count() {
+    let monitor_count = match os_level::get_monitor_count() {
         Ok(count) => count,
         Err(e) => {
             eprintln!("{}", e);
@@ -142,12 +142,12 @@ pub fn change_background(args: &[String]) {
         };
 
         // Set the picture
-        mac::set_background(&copied_absolute_path, desktop_num);
+        os_level::set_background(&copied_absolute_path, desktop_num);
     }
 }
 
 pub fn show_monitor_sizes() {
-    let monitor_count = match mac::get_monitor_count() {
+    let monitor_count = match os_level::get_monitor_count() {
         Ok(count) => count,
         Err(e) => {
             eprintln!("{}", e);
@@ -157,13 +157,13 @@ pub fn show_monitor_sizes() {
 
     println!("Monitor sizes:");
 
-    for desktop_num in 1..=monitor_count {
-        match mac::get_monitor_size(desktop_num) {
+    for mon_number in 1..=monitor_count {
+        match os_level::get_monitor_size(mon_number) {
             Ok((width, height)) => {
-                println!("  Monitor {}: {}x{} pixels", desktop_num, width, height);
+                println!("  Monitor {}: {}x{} pixels", mon_number, width, height);
             }
             Err(e) => {
-                eprintln!("  Monitor {} - Error: {}", desktop_num, e);
+                eprintln!("  Monitor {} - Error: {}", mon_number, e);
             }
         }
     }
