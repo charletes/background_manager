@@ -4,7 +4,7 @@ use std::process::Command;
 
 use crate::os_level::MonitorInfo;
 
-fn get_profile_info() -> Result<Vec<MonitorInfo>, String> {
+pub fn get_profile_info() -> Result<Vec<MonitorInfo>, String> {
     // Run "system_profiler SPDisplaysDataType" and capture output
     let output = Command::new("system_profiler")
         .arg("SPDisplaysDataType")
@@ -113,27 +113,6 @@ fn get_profile_info() -> Result<Vec<MonitorInfo>, String> {
     } else {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
-}
-
-pub fn get_monitor_count() -> Result<i32, String> {
-    let profile_info = get_profile_info()?;
-
-    return Ok(profile_info.len() as i32);
-}
-
-pub fn get_monitor_size(monitor_num: i32) -> Result<(i32, i32), String> {
-    let profile_info = get_profile_info()?;
-    if monitor_num < 1 || (monitor_num as usize) > profile_info.len() {
-        return Err(format!(
-            "Monitor number {} is out of range (1-{})",
-            monitor_num,
-            profile_info.len()
-        ));
-    }
-
-    let monitor_info = &profile_info[(monitor_num - 1) as usize];
-
-    Ok((monitor_info.width as i32, monitor_info.height as i32))
 }
 
 pub fn set_background(absolute_path: &PathBuf, desktop_num: i32) {
