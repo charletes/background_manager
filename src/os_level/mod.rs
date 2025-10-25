@@ -1,5 +1,13 @@
 use std::path::PathBuf;
 
+#[derive(Debug)]
+pub struct MonitorInfo {
+    pub name: String,
+    pub id: usize,
+    pub width: usize,
+    pub height: usize,
+}
+
 #[cfg(target_os = "macos")]
 mod mac;
 
