@@ -1,0 +1,82 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'background_manager'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=background_manager",
+                    "--package=background_manager"
+                ],
+                "filter": {
+                    "name": "background_manager",
+                    "kind": "bin"
+                }
+            },
+            "args": ["change", "test_resources/test_a.jpg"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'background_manager'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=background_manager",
+                    "--package=background_manager"
+                ],
+                "filter": {
+                    "name": "background_manager",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'windows_stuff'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=windows_stuff",
+                    "--package=background_manager"
+                ],
+                "filter": {
+                    "name": "windows_stuff",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'windows_stuff'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=windows_stuff",
+                    "--package=background_manager"
+                ],
+                "filter": {
+                    "name": "windows_stuff",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

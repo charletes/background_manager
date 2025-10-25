@@ -29,7 +29,7 @@ pub fn get_monitor_count() -> Result<i32, String> {
     get_profile_info().map(|info| info.len() as i32)
 }
 
-pub fn get_monitor_size(monitor_num: i32) -> Result<(i32, i32), String> {
+pub fn get_monitor_size(monitor_num: i32) -> Result<(u32, u32), String> {
     let profile_info = get_profile_info()?;
     if monitor_num < 1 || (monitor_num as usize) > profile_info.len() {
         return Err(format!(
@@ -41,14 +41,16 @@ pub fn get_monitor_size(monitor_num: i32) -> Result<(i32, i32), String> {
 
     let monitor_info = &profile_info[(monitor_num - 1) as usize];
 
-    Ok((monitor_info.width as i32, monitor_info.height as i32))
+    Ok((monitor_info.width as u32, monitor_info.height as u32))
 }
 
-#[cfg(target_os = "macos")]
 pub fn set_background(absolute_path: &PathBuf, desktop_num: i32) {
-    mac::set_background(absolute_path, desktop_num)
-}
-#[cfg(target_os = "windows")]
-pub fn set_background(absolute_path: &PathBuf, desktop_num: i32) {
-    win::set_background(absolute_path, desktop_num)
+    #[cfg(target_os = "macos")]
+    {
+        mac::set_background(absolute_path, desktop_num);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        win::set_background(absolute_path, desktop_num);
+    }
 }
