@@ -11,4 +11,6 @@ regex = "1.12.2"
 windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi",
     "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
 ] }
