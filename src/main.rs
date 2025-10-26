@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+mod image_proc;
 mod logic;
 mod os_level;
 

@@ -46,6 +46,6 @@ fn main() {
 #[cfg(target_os = "windows")]
 fn main() {
     unsafe {
-        EnumDisplayMonitors(None, None, Some(monitor_enum_proc), LPARAM(0));
+        let _ = EnumDisplayMonitors(None, None, Some(monitor_enum_proc), LPARAM(0));
     }
 }

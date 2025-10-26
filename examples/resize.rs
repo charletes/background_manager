@@ -5,7 +5,7 @@ fn main() {
     let (screen_width, screen_height) = (1920.0_f64, 1080.0_f64);
 
     // Open the image
-    let mut img = photon_rs::native::open_image(original_file).expect("Failed to open image");
+    let img = photon_rs::native::open_image(original_file).expect("Failed to open image");
     let img_width = img.get_width() as f64;
     let img_height = img.get_height() as f64;
 
