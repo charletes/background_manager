@@ -1,5 +1,4 @@
 use std::fs;
-use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -106,7 +105,7 @@ fn create_target_file(
     timestamp: u64,
 ) -> Option<PathBuf> {
     // Define the target filename
-    let target_filename = format!("{}_{}.jpg", desktop_num, timestamp);
+    let target_filename = format!("{}_{}.png", desktop_num, timestamp);
     if let Some(filename) = file_path.file_name() {
         if filename.to_string_lossy() == target_filename {
             eprintln!(
@@ -132,22 +131,10 @@ fn create_target_file(
         }
     }
 
-    // Copy file to destination
-    match fs::copy(absolute_path, &target_path) {
-        Ok(_) => println!("  Copied image to '{}'", target_filename),
-        Err(e) => {
-            eprintln!(
-                "  Monitor {} - Failed to copy file to '{}': {}",
-                desktop_num, target_filename, e
-            );
-            return None;
-        }
-    }
+    // Process the image directly from source to target
+    adjust_image(absolute_path, &target_path, desktop_num);
 
-    // Modify destination file
-    adjust_image(&target_path, desktop_num);
-
-    // Get the absolute path of the copied file
+    // Get the absolute path of the created file
     let copied_absolute_path = match target_path.canonicalize() {
         Ok(path) => path,
         Err(e) => {
@@ -161,7 +148,7 @@ fn create_target_file(
     Some(copied_absolute_path)
 }
 
-pub fn adjust_image(target_path: &PathBuf, desktop_num: i32) {
+pub fn adjust_image(source_path: &PathBuf, target_path: &PathBuf, desktop_num: i32) {
     // Get the monitor size
     let (monitor_width, monitor_height) = match os_level::get_monitor_size(desktop_num) {
         Ok(size) => size,
@@ -174,8 +161,14 @@ pub fn adjust_image(target_path: &PathBuf, desktop_num: i32) {
         }
     };
 
-    // Open the image
-    let mut img = match photon_rs::native::open_image(target_path.to_str().unwrap()) {
+    println!(
+        "  Monitor {} - Processing image from '{}'",
+        desktop_num,
+        source_path.display()
+    );
+
+    // Open the image from source
+    let img = match photon_rs::native::open_image(source_path.to_str().unwrap()) {
         Ok(image) => image,
         Err(e) => {
             eprintln!("  Monitor {} - Failed to open image: {}", desktop_num, e);
@@ -183,65 +176,97 @@ pub fn adjust_image(target_path: &PathBuf, desktop_num: i32) {
         }
     };
 
-    let img_width = img.get_width();
-    let img_height = img.get_height();
+    let img_width = img.get_width() as f64;
+    let img_height = img.get_height() as f64;
+    let screen_width = monitor_width as f64;
+    let screen_height = monitor_height as f64;
 
-    // Check if resizing is needed
-    if img_width != monitor_width || img_height != monitor_height {
-        println!(
-            "  Monitor {} - Image size {}x{} differs from monitor {}x{}, scaling...",
-            desktop_num, img_width, img_height, monitor_width, monitor_height
-        );
-
-        // Calculate scale factor to ensure both dimensions are at least monitor size
-        let scale_x = monitor_width as f32 / img_width as f32;
-        let scale_y = monitor_height as f32 / img_height as f32;
-        let scale = scale_x.max(scale_y);
-
-        let new_width = (img_width as f32 * scale) as u32;
-        let new_height = (img_height as f32 * scale) as u32;
-
-        // Resize the image
-        img = photon_rs::transform::resize(
-            &img,
-            new_width,
-            new_height,
-            photon_rs::transform::SamplingFilter::Lanczos3,
-        );
-
-        // Crop the image to monitor size, centered
-        let crop_x = (new_width - monitor_width) / 2;
-        let crop_y = (new_height - monitor_height) / 2;
-        img = photon_rs::transform::crop(&img, crop_x, crop_y, monitor_width, monitor_height);
-
-        // Save the resized image
-        match photon_rs::native::save_image(img, target_path.to_str().unwrap()) {
-            Ok(_) => println!(
-                "  Monitor {} - Resized image to {}x{}",
-                desktop_num, new_width, new_height
-            ),
-            Err(e) => {
-                eprintln!(
-                    "  Monitor {} - Failed to save resized image: {}",
-                    desktop_num, e
-                );
-            }
-        }
-    } else {
-        println!(
-            "  Monitor {} - Image size matches monitor, no scaling needed",
-            desktop_num
-        );
-    }
-
-    // Placeholder for image adjustment logic
-    // For example, resizing or cropping the image to fit the monitor's resolution
     println!(
-        "  Monitor {} - Adjusting image at '{}'",
-        desktop_num,
-        target_path.display()
+        "  Monitor {} - Original image size: {}x{} pixels. Monitor size: {}x{} pixels",
+        desktop_num, img_width as u32, img_height as u32, screen_width as u32, screen_height as u32
     );
-    // Actual image processing code would go here
+
+    // Scale to fit (maintain aspect ratio, fit within screen)
+    let fit_scale = (screen_width / img_width).min(screen_height / img_height);
+    let fit_width = (img_width * fit_scale) as u32;
+    let fit_height = (img_height * fit_scale) as u32;
+
+    println!(
+        "  Monitor {} - Creating fit version ({}x{})",
+        desktop_num, fit_width, fit_height
+    );
+
+    let fit_img = photon_rs::transform::resize(
+        &img,
+        fit_width,
+        fit_height,
+        photon_rs::transform::SamplingFilter::Lanczos3,
+    );
+
+    // Scale to fill (maintain aspect ratio, cover entire screen)
+    let fill_scale = (screen_width / img_width).max(screen_height / img_height);
+    let fill_width = (img_width * fill_scale) as u32;
+    let fill_height = (img_height * fill_scale) as u32;
+
+    println!(
+        "  Monitor {} - Creating fill version ({}x{})",
+        desktop_num, fill_width, fill_height
+    );
+
+    let fill_img = photon_rs::transform::resize(
+        &img,
+        fill_width,
+        fill_height,
+        photon_rs::transform::SamplingFilter::Lanczos3,
+    );
+
+    // Calculate center crop coordinates
+    let center_x = fill_width as i32 / 2;
+    let center_y = fill_height as i32 / 2;
+
+    let top_left_x = center_x - (screen_width as i32 / 2);
+    let top_left_y = center_y - (screen_height as i32 / 2);
+
+    let bottom_right_x = top_left_x + screen_width as i32;
+    let bottom_right_y = top_left_y + screen_height as i32;
+
+    // Crop the fill image to screen size
+    let mut fill_crop_img = photon_rs::transform::crop(
+        &fill_img,
+        top_left_x as u32,
+        top_left_y as u32,
+        bottom_right_x as u32,
+        bottom_right_y as u32,
+    );
+
+    // Apply gaussian blur to the background
+    println!("  Monitor {} - Applying blur to background", desktop_num);
+    photon_rs::conv::gaussian_blur(&mut fill_crop_img, (screen_width as f32 / 40.0) as i32);
+
+    // Paste the fit image centered on top of the blurred fill image
+    let paste_x = (screen_width as u32 - fit_width) / 2;
+    let paste_y = (screen_height as u32 - fit_height) / 2;
+
+    println!(
+        "  Monitor {} - Compositing fit image on blurred background",
+        desktop_num
+    );
+
+    photon_rs::multiple::watermark(&mut fill_crop_img, &fit_img, paste_x.into(), paste_y.into());
+
+    // Save the final composite image
+    match photon_rs::native::save_image(fill_crop_img, target_path.to_str().unwrap()) {
+        Ok(_) => println!(
+            "  Monitor {} - Successfully processed and saved image ({}x{})",
+            desktop_num, monitor_width, monitor_height
+        ),
+        Err(e) => {
+            eprintln!(
+                "  Monitor {} - Failed to save processed image: {}",
+                desktop_num, e
+            );
+        }
+    }
 }
 
 pub fn show_monitor_sizes() {
