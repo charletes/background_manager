@@ -23,3 +23,6 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 1 # Optional: set a lower optimization level for your own code
+
+[build-dependencies]
+slint-build = "1.14.1"
