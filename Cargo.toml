@@ -7,6 +7,8 @@ edition = "2021"
 clap = { version = "4.5", features = ["derive"] }
 photon-rs = { version = "0.3.3", default-features = false }
 regex = "1.12.2"
+slint = "1.14.1"
+tray-item = "0.10.0"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
