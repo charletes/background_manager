@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::image_proc;
 use crate::os_level;
 
 pub fn change_background(args: &[String]) {
@@ -176,86 +177,18 @@ pub fn adjust_image(source_path: &PathBuf, target_path: &PathBuf, desktop_num: i
         }
     };
 
-    let img_width = img.get_width() as f64;
-    let img_height = img.get_height() as f64;
-    let screen_width = monitor_width as f64;
-    let screen_height = monitor_height as f64;
+    // Scale to fit
+    let fit_img = image_proc::fit_to_size(&img, (monitor_width, monitor_height));
 
-    println!(
-        "  Monitor {} - Original image size: {}x{} pixels. Monitor size: {}x{} pixels",
-        desktop_num, img_width as u32, img_height as u32, screen_width as u32, screen_height as u32
-    );
+    // Scale to fill
+    let fill_img = image_proc::fill_to_size(&img, (monitor_width, monitor_height));
 
-    // Scale to fit (maintain aspect ratio, fit within screen)
-    let fit_scale = (screen_width / img_width).min(screen_height / img_height);
-    let fit_width = (img_width * fit_scale) as u32;
-    let fit_height = (img_height * fit_scale) as u32;
-
-    println!(
-        "  Monitor {} - Creating fit version ({}x{})",
-        desktop_num, fit_width, fit_height
-    );
-
-    let fit_img = photon_rs::transform::resize(
-        &img,
-        fit_width,
-        fit_height,
-        photon_rs::transform::SamplingFilter::Lanczos3,
-    );
-
-    // Scale to fill (maintain aspect ratio, cover entire screen)
-    let fill_scale = (screen_width / img_width).max(screen_height / img_height);
-    let fill_width = (img_width * fill_scale) as u32;
-    let fill_height = (img_height * fill_scale) as u32;
-
-    println!(
-        "  Monitor {} - Creating fill version ({}x{})",
-        desktop_num, fill_width, fill_height
-    );
-
-    let fill_img = photon_rs::transform::resize(
-        &img,
-        fill_width,
-        fill_height,
-        photon_rs::transform::SamplingFilter::Lanczos3,
-    );
-
-    // Calculate center crop coordinates
-    let center_x = fill_width as i32 / 2;
-    let center_y = fill_height as i32 / 2;
-
-    let top_left_x = center_x - (screen_width as i32 / 2);
-    let top_left_y = center_y - (screen_height as i32 / 2);
-
-    let bottom_right_x = top_left_x + screen_width as i32;
-    let bottom_right_y = top_left_y + screen_height as i32;
-
-    // Crop the fill image to screen size
-    let mut fill_crop_img = photon_rs::transform::crop(
-        &fill_img,
-        top_left_x as u32,
-        top_left_y as u32,
-        bottom_right_x as u32,
-        bottom_right_y as u32,
-    );
-
-    // Apply gaussian blur to the background
-    println!("  Monitor {} - Applying blur to background", desktop_num);
-    photon_rs::conv::gaussian_blur(&mut fill_crop_img, (screen_width as f32 / 40.0) as i32);
-
-    // Paste the fit image centered on top of the blurred fill image
-    let paste_x = (screen_width as u32 - fit_width) / 2;
-    let paste_y = (screen_height as u32 - fit_height) / 2;
-
-    println!(
-        "  Monitor {} - Compositing fit image on blurred background",
-        desktop_num
-    );
-
-    photon_rs::multiple::watermark(&mut fill_crop_img, &fit_img, paste_x.into(), paste_y.into());
+    // Combine fit and fill images
+    let combined_img =
+        image_proc::combine_fit_and_fill(&fit_img, &fill_img, (monitor_width, monitor_height));
 
     // Save the final composite image
-    match photon_rs::native::save_image(fill_crop_img, target_path.to_str().unwrap()) {
+    match photon_rs::native::save_image(combined_img, target_path.to_str().unwrap()) {
         Ok(_) => println!(
             "  Monitor {} - Successfully processed and saved image ({}x{})",
             desktop_num, monitor_width, monitor_height
