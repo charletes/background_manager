@@ -14,6 +14,9 @@ mod mac;
 #[cfg(target_os = "windows")]
 mod win;
 
+#[cfg(target_os = "linux")]
+mod linux;
+
 fn get_profile_info() -> Result<Vec<MonitorInfo>, String> {
     #[cfg(target_os = "macos")]
     {
@@ -22,6 +25,10 @@ fn get_profile_info() -> Result<Vec<MonitorInfo>, String> {
     #[cfg(target_os = "windows")]
     {
         return win::get_profile_info();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux::get_profile_info()
     }
 }
 
@@ -52,5 +59,9 @@ pub fn set_background(absolute_path: &PathBuf, desktop_num: i32) {
     #[cfg(target_os = "windows")]
     {
         win::set_background(absolute_path, desktop_num);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux::set_background(absolute_path, desktop_num);
     }
 }

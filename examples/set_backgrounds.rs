@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
 
-mod image_proc;
-mod logic;
-mod os_level;
+use background_manager::logic;
 
 #[derive(Parser)]
 #[command(name = "background_manager")]

@@ -13,7 +13,7 @@ pub fn fit_to_size(image: &PhotonImage, screen_size: (u32, u32)) -> PhotonImage 
     let fit_height = (img_height * fit_scale) as u32;
 
     photon_rs::transform::resize(
-        &image,
+        image,
         fit_width,
         fit_height,
         photon_rs::transform::SamplingFilter::Lanczos3,
@@ -73,9 +73,9 @@ pub fn combine_fit_and_fill(
     // Paste the fit image centered on top of the blurred fill image
     let fit_width = fit_img.get_width();
     let fit_height = fit_img.get_height();
-    let paste_x = (screen_width as u32 - fit_width) / 2;
-    let paste_y = (screen_height as u32 - fit_height) / 2;
-    photon_rs::multiple::watermark(&mut fill_blur, &fit_img, paste_x.into(), paste_y.into());
+    let paste_x = (screen_width - fit_width) / 2;
+    let paste_y = (screen_height - fit_height) / 2;
+    photon_rs::multiple::watermark(&mut fill_blur, fit_img, paste_x.into(), paste_y.into());
 
     fill_blur
 }
