@@ -119,6 +119,8 @@ fn create_macos_tray(
         .join("resources")
         .join(icon_filename);
 
+    println!("Using icon path: {:?}", icon_path);
+
     let icon = IconSource::Resource(Box::leak(
         icon_path.to_string_lossy().into_owned().into_boxed_str(),
     ));
