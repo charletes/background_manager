@@ -149,7 +149,7 @@ fn create_macos_tray(
         }
         Err(e) => {
             eprintln!("[ERROR] Failed to create tray: {:?}", e);
-            return Err(e);
+            return Err(Box::new(e));
         }
     };
 
