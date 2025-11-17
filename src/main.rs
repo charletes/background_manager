@@ -128,23 +128,30 @@ fn create_macos_tray(
     ui: &AppWindow,
     window_visible: &Arc<Mutex<bool>>,
 ) -> Result<(), Box<dyn Error>> {
-    // Select icon based on system theme
-    let icon_filename = match dark_light::detect() {
-        Ok(dark_light::Mode::Light) => "tray_light.png",
-        _ => "tray_dark.png", // Default to dark icon for Dark mode or errors
-    };
-
+    // On macOS, try using a simple icon name or embedded resource
+    // The tray-item crate for macOS might have different requirements
     let icon_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("resources")
-        .join(icon_filename);
+        .join("tray_dark.png");
 
-    println!("Using icon path: {:?}", icon_path);
+    eprintln!("[DEBUG] macOS tray icon path: {:?}", icon_path);
+    eprintln!("[DEBUG] Icon file exists: {}", icon_path.exists());
 
+    // Try creating tray with the resource path
     let icon = IconSource::Resource(Box::leak(
         icon_path.to_string_lossy().into_owned().into_boxed_str(),
     ));
 
-    let mut tray = TrayItem::new("Background Manager", icon)?;
+    let mut tray = match TrayItem::new("Background Manager", icon) {
+        Ok(t) => {
+            eprintln!("[DEBUG] Tray created successfully");
+            t
+        }
+        Err(e) => {
+            eprintln!("[ERROR] Failed to create tray: {:?}", e);
+            return Err(e);
+        }
+    };
 
     tray.add_label("Background Manager")?;
 
