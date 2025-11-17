@@ -39,12 +39,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         unimplemented!("Tray icon not implemented for Windows yet");
     }
 
-    // When window is closed with X, quit the application
-    ui.window().on_close_requested(|| {
-        std::process::exit(0);
-    });
+    // Show the main window initially
+    ui.show()?;
 
-    ui.run()?;
+    eprintln!("[DEBUG] Starting event loop - will stay alive when window is hidden");
+
+    // Use run_event_loop_until_quit instead of ui.run()
+    // This keeps the event loop running even when all windows are hidden
+    // Quit only when slint::quit_event_loop() is called (e.g., from Quit menu)
+    slint::run_event_loop_until_quit()?;
+
+    eprintln!("[DEBUG] Event loop exited");
 
     Ok(())
 }
@@ -89,13 +94,20 @@ fn create_linux_tray(
         }
     })?;
 
-    // Quit application
-    let ui_handle_quit = ui.as_weak();
-    tray.add_menu_item("Quit", move || {
-        if let Some(ui) = ui_handle_quit.upgrade() {
+    // "Hide" menu item to hide the window
+    let ui_handle_hide = ui.as_weak();
+    let window_visible_hide = Arc::clone(window_visible);
+    tray.add_menu_item("Hide", move || {
+        if let Some(ui) = ui_handle_hide.upgrade() {
             ui.hide().unwrap();
+            let mut visible = window_visible_hide.lock().unwrap();
+            *visible = false;
         }
-        std::process::exit(0);
+    })?;
+
+    // "Quit" menu item to actually quit the application
+    tray.add_menu_item("Quit", move || {
+        slint::quit_event_loop().unwrap();
     })?;
 
     // Keep tray alive by leaking it
