@@ -78,20 +78,27 @@ fn create_linux_tray(
 
     tray.add_label("Background Manager")?;
 
-    // Toggle window visibility
+    // "Show" menu item to show the window
     let ui_handle = ui.as_weak();
     let window_visible_clone = Arc::clone(window_visible);
-    tray.add_menu_item("Toggle Window", move || {
-        if let Some(ui) = ui_handle.upgrade() {
-            let mut visible = window_visible_clone.lock().unwrap();
-            if *visible {
-                ui.hide().unwrap();
-                *visible = false;
-            } else {
-                ui.show().unwrap();
+    tray.add_menu_item("Show", move || {
+        eprintln!("[DEBUG] Show menu clicked");
+        let ui_weak = ui_handle.clone();
+        let vis = window_visible_clone.clone();
+        
+        // Use invoke_from_event_loop to ensure we're on the right thread
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                eprintln!("[DEBUG] Showing window from event loop");
+                ui.window().show().unwrap();
+                ui.window().request_redraw();
+                let mut visible = vis.lock().unwrap();
                 *visible = true;
+                eprintln!("[DEBUG] Window shown successfully");
+            } else {
+                eprintln!("[DEBUG] Failed to upgrade weak reference");
             }
-        }
+        });
     })?;
 
     // "Hide" menu item to hide the window
@@ -141,20 +148,27 @@ fn create_macos_tray(
 
     tray.add_label("Background Manager")?;
 
-    // Toggle window visibility
+    // "Show" menu item to show the window
     let ui_handle = ui.as_weak();
     let window_visible_clone = Arc::clone(window_visible);
-    tray.add_menu_item("Toggle Window", move || {
-        if let Some(ui) = ui_handle.upgrade() {
-            let mut visible = window_visible_clone.lock().unwrap();
-            if *visible {
-                ui.hide().unwrap();
-                *visible = false;
-            } else {
-                ui.show().unwrap();
+    tray.add_menu_item("Show", move || {
+        eprintln!("[DEBUG] Show menu clicked");
+        let ui_weak = ui_handle.clone();
+        let vis = window_visible_clone.clone();
+        
+        // Use invoke_from_event_loop to ensure we're on the right thread
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                eprintln!("[DEBUG] Showing window from event loop");
+                ui.window().show().unwrap();
+                ui.window().request_redraw();
+                let mut visible = vis.lock().unwrap();
                 *visible = true;
+                eprintln!("[DEBUG] Window shown successfully");
+            } else {
+                eprintln!("[DEBUG] Failed to upgrade weak reference");
             }
-        }
+        });
     })?;
 
     // Get inner tray for macOS-specific operations
