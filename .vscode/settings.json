@@ -8,5 +8,11 @@
     "rust-analyzer.inlayHints.parameterHints.enable": false,
     "rust-analyzer.inlayHints.renderColons": true,
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "editor.formatOnPaste": true
+    "editor.formatOnPaste": true,
+    "github.copilot.chat.reviewSelection.instructions": [
+        {
+            "text": "When making changes to rust files, make sure you do 'cargo build' at the end to verify that everything compiles correctly. If not, fix and compile in a loop until the build is clean.",
+            "language": "rust"
+        }
+    ]
 }
