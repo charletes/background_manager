@@ -6,5 +6,7 @@
     "rust-analyzer.inlayHints.closingBraceHints.enable": false,
     "rust-analyzer.inlayHints.genericParameterHints.const.enable": false,
     "rust-analyzer.inlayHints.parameterHints.enable": false,
-    "rust-analyzer.inlayHints.renderColons": true
+    "rust-analyzer.inlayHints.renderColons": true,
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnPaste": true
 }
