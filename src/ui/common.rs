@@ -3,8 +3,7 @@ use slint::ComponentHandle;
 use crate::ui::MainWindow;
 
 use tray_icon::{
-    menu::{Menu, MenuEvent, MenuEventReceiver, MenuId, MenuItem},
-    TrayIcon, TrayIconBuilder,
+    menu::{Menu, MenuId, MenuItem}, TrayIconBuilder,
 };
 
 pub fn on_close_requested(win: slint::Weak<MainWindow>) -> slint::CloseRequestResponse {
@@ -60,5 +59,5 @@ pub fn create_tray_icon() -> (tray_icon::TrayIcon, MenuItem, MenuItem, MenuId, M
         .build()
         .unwrap();
 
-    return (tray_icon, show_item, exit_item, show_id, exit_id);
+    (tray_icon, show_item, exit_item, show_id, exit_id)
 }

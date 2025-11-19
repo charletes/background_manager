@@ -1,12 +1,9 @@
-use tray_icon::{
-    menu::{Menu, MenuEvent, MenuItem},
-    TrayIcon, TrayIconBuilder,
-};
+use tray_icon::menu::MenuEvent;
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use crate::ui::common::{create_tray_icon, load_and_invert_icon, on_close_requested};
+use crate::ui::common::{create_tray_icon, on_close_requested};
 
 slint::include_modules!();
 
