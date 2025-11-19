@@ -1,18 +1,22 @@
-import { Button, VerticalBox } from "std-widgets.slint";
+export component MainWindow inherits Window {
+    title: "Hello Tray";
+    width: 300px;
+    height: 100px;
 
-export component AppWindow inherits Window {
-    in-out property <int> counter: 42;
-    callback request-increase-value();
-    VerticalBox {
-        Text {
-            text: "Counter: \{root.counter}";
-        }
+    callback quit();
+    callback triggered;
 
-        Button {
-            text: "Increase value";
-            clicked => {
-                root.request-increase-value();
-            }
+    Text {
+        text: "Hello, World!";
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    Timer {
+        interval: 100ms;
+        running: true;
+        triggered => {
+            root.triggered();
         }
     }
 }

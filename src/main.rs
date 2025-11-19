@@ -1,190 +1,203 @@
-// Prevent console window in addition to Slint window in Windows release builds when, e.g., starting the app via file manager. Ignored on other platforms.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use std::error::Error;
-use std::sync::{Arc, Mutex};
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-use tray_item::{IconSource, TrayItem};
+use tray_icon::{
+    menu::{Menu, MenuItem, MenuEvent},
+    TrayIconBuilder,
+};
+use std::sync::mpsc::{self, Sender, Receiver};
+use std::thread;
 
 slint::include_modules!();
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let ui = AppWindow::new()?;
-
-    // Track window visibility state
-    let window_visible = Arc::new(Mutex::new(true));
-
-    ui.on_request_increase_value({
-        let ui_handle = ui.as_weak();
-        move || {
-            let ui = ui_handle.unwrap();
-            ui.set_counter(ui.get_counter() + 1);
-        }
-    });
-
-    // Platform-specific tray icon creation
-    #[cfg(target_os = "linux")]
-    {
-        create_linux_tray(&ui, &window_visible)?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        create_macos_tray(&ui, &window_visible)?;
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        unimplemented!("Tray icon not implemented for Windows yet");
-    }
-
-    // Show the main window initially
-    ui.show()?;
-
-    eprintln!("[DEBUG] Starting event loop - will stay alive when window is hidden");
-
-    // Use run_event_loop_until_quit instead of ui.run()
-    // This keeps the event loop running even when all windows are hidden
-    // Quit only when slint::quit_event_loop() is called (e.g., from Quit menu)
-    slint::run_event_loop_until_quit()?;
-
-    eprintln!("[DEBUG] Event loop exited");
-
-    Ok(())
+// Messages from GTK thread to Slint thread
+enum TrayEvent {
+    ShowWindow,
+    Exit,
 }
 
-#[cfg(target_os = "linux")]
-fn create_linux_tray(
-    ui: &AppWindow,
-    window_visible: &Arc<Mutex<bool>>,
-) -> Result<(), Box<dyn Error>> {
-    // Create tray icon
-    // Select icon based on system theme
-    let icon_filename = match dark_light::detect() {
-        Ok(dark_light::Mode::Light) => "tray_light.png",
-        _ => "tray_dark.png", // Default to dark icon for Dark mode or errors
-    };
-
-    let icon_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join(icon_filename);
-
-    let icon = IconSource::Resource(Box::leak(
-        icon_path.to_string_lossy().into_owned().into_boxed_str(),
-    ));
-
-    let mut tray = TrayItem::new("Background Manager", icon)?;
-
-    tray.add_label("Background Manager")?;
-
-    // "Show" menu item to show the window
-    let ui_handle = ui.as_weak();
-    let window_visible_clone = Arc::clone(window_visible);
-    tray.add_menu_item("Show", move || {
-        eprintln!("[DEBUG] Show menu clicked");
-        let ui_weak = ui_handle.clone();
-        let vis = window_visible_clone.clone();
-        
-        // Use invoke_from_event_loop to ensure we're on the right thread
-        let _ = slint::invoke_from_event_loop(move || {
-            if let Some(ui) = ui_weak.upgrade() {
-                eprintln!("[DEBUG] Showing window from event loop");
-                ui.window().show().unwrap();
-                ui.window().request_redraw();
-                let mut visible = vis.lock().unwrap();
-                *visible = true;
-                eprintln!("[DEBUG] Window shown successfully");
-            } else {
-                eprintln!("[DEBUG] Failed to upgrade weak reference");
-            }
-        });
-    })?;
-
-    // "Hide" menu item to hide the window
-    let ui_handle_hide = ui.as_weak();
-    let window_visible_hide = Arc::clone(window_visible);
-    tray.add_menu_item("Hide", move || {
-        if let Some(ui) = ui_handle_hide.upgrade() {
-            ui.hide().unwrap();
-            let mut visible = window_visible_hide.lock().unwrap();
-            *visible = false;
-        }
-    })?;
-
-    // "Quit" menu item to actually quit the application
-    tray.add_menu_item("Quit", move || {
-        slint::quit_event_loop().unwrap();
-    })?;
-
-    // Keep tray alive by leaking it
-    Box::leak(Box::new(tray));
-
-    Ok(())
+// Messages from Slint thread to GTK thread
+enum SlintEvent {
+    Quit,
 }
 
-#[cfg(target_os = "macos")]
-fn create_macos_tray(
-    ui: &AppWindow,
-    window_visible: &Arc<Mutex<bool>>,
-) -> Result<(), Box<dyn Error>> {
-    // On macOS, try using a simple icon name or embedded resource
-    // The tray-item crate for macOS might have different requirements
-    let icon_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join("tray_dark.png");
+fn main() -> Result<(), slint::PlatformError> {
+    // Create communication channels
+    let (tray_tx, tray_rx) = mpsc::channel::<TrayEvent>();
+    let (slint_tx, slint_rx) = mpsc::channel::<SlintEvent>();
+    
+    // Start GTK tray thread
+    let gtk_handle = create_tray_icon(tray_tx, slint_rx);
+    
+    // Start Slint UI thread
+    let slint_handle = instantiate_ui(tray_rx, slint_tx.clone());
+    
+    // Set up cross-thread event handling
+    setup_event_handling(slint_tx);
+    
+    println!("Application is running. Both event loops are active.");
 
-    eprintln!("[DEBUG] macOS tray icon path: {:?}", icon_path);
-    eprintln!("[DEBUG] Icon file exists: {}", icon_path.exists());
+    // Wait for threads to complete
+    let slint_result = slint_handle.join().expect("Slint thread panicked");
+    gtk_handle.join().expect("GTK thread panicked");
 
-    // Try creating tray with the resource path
-    let icon = IconSource::Resource(Box::leak(
-        icon_path.to_string_lossy().into_owned().into_boxed_str(),
-    ));
+    println!("Application is closing.");
 
-    let mut tray = match TrayItem::new("Background Manager", icon) {
-        Ok(t) => {
-            eprintln!("[DEBUG] Tray created successfully");
-            t
-        }
-        Err(e) => {
-            eprintln!("[ERROR] Failed to create tray: {:?}", e);
-            return Err(Box::new(e));
-        }
-    };
+    slint_result
+}
 
-    tray.add_label("Background Manager")?;
-
-    // "Show" menu item to show the window
-    let ui_handle = ui.as_weak();
-    let window_visible_clone = Arc::clone(window_visible);
-    tray.add_menu_item("Show", move || {
-        eprintln!("[DEBUG] Show menu clicked");
-        let ui_weak = ui_handle.clone();
-        let vis = window_visible_clone.clone();
+//#[cfg(target_os = "macos")]
+fn create_tray_icon(
+    tray_tx: Sender<TrayEvent>,
+    slint_rx: Receiver<SlintEvent>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        // Initialize GTK in this thread
+        gtk::init().expect("Failed to initialize GTK");
         
-        // Use invoke_from_event_loop to ensure we're on the right thread
-        let _ = slint::invoke_from_event_loop(move || {
-            if let Some(ui) = ui_weak.upgrade() {
-                eprintln!("[DEBUG] Showing window from event loop");
-                ui.window().show().unwrap();
-                ui.window().request_redraw();
-                let mut visible = vis.lock().unwrap();
-                *visible = true;
-                eprintln!("[DEBUG] Window shown successfully");
-            } else {
-                eprintln!("[DEBUG] Failed to upgrade weak reference");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tray_icon.png");
+        let (dark_icon, light_icon) = load_and_invert_icon(path);
+
+        let icon = match dark_light::detect() {
+            Ok(dark_light::Mode::Dark) => light_icon,
+            _ => dark_icon,
+        };
+
+        let tray_menu = Menu::new();
+        let show_item = MenuItem::new("Show Window", true, None);
+        let exit_item = MenuItem::new("Exit", true, None);
+        
+        let show_id = show_item.id().clone();
+        let exit_id = exit_item.id().clone();
+        
+        tray_menu.append(&show_item).unwrap();
+        tray_menu.append(&exit_item).unwrap();
+
+        let tray_icon = TrayIconBuilder::new()
+            .with_menu(Box::new(tray_menu))
+            .with_tooltip("Tray Test with Slint")
+            .with_icon(icon)
+            .build()
+            .unwrap();
+
+        println!("Tray icon has been set up in GTK thread.");
+
+        // Keep tray icon alive
+        let _tray_icon = tray_icon;
+
+        // GTK event loop with menu event handling
+        let menu_channel = MenuEvent::receiver();
+        
+        loop {
+            // Process GTK events
+            while gtk::events_pending() {
+                gtk::main_iteration_do(false);
             }
-        });
-    })?;
+            
+            // Check for menu events
+            while let Ok(event) = menu_channel.try_recv() {
+                if event.id == show_id {
+                    println!("Show menu item clicked in GTK thread");
+                    tray_tx.send(TrayEvent::ShowWindow).ok();
+                } else if event.id == exit_id {
+                    println!("Exit menu item clicked in GTK thread");
+                    tray_tx.send(TrayEvent::Exit).ok();
+                    return; // Exit GTK thread
+                }
+            }
+            
+            // Check for messages from Slint thread
+            if let Ok(SlintEvent::Quit) = slint_rx.try_recv() {
+                println!("Quit signal received in GTK thread");
+                return; // Exit GTK thread
+            }
+            
+            // Small sleep to prevent busy-waiting
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    })
+}
 
-    // Get inner tray for macOS-specific operations
-    let mut inner = tray.inner_mut();
-    inner.add_quit_item("Quit");
-    inner.display();
 
-    // Keep tray alive by leaking it
-    Box::leak(Box::new(tray));
 
-    Ok(())
+fn instantiate_ui(
+    tray_rx: Receiver<TrayEvent>,
+    slint_tx: Sender<SlintEvent>,
+) -> thread::JoinHandle<Result<(), slint::PlatformError>> {
+    thread::spawn(move || {
+        let main_window = MainWindow::new().unwrap();
+
+        println!("Main window has been instantiated in Slint thread.");
+
+        let window = main_window.window();
+
+        let weak_window = main_window.as_weak();
+        window.on_close_requested(move || on_close_requested(weak_window.clone()));
+
+        let slint_tx_clone = slint_tx.clone();
+        main_window.on_quit(move || on_quit(slint_tx_clone.clone()));
+
+        // Handle tray events in Slint thread using a timer
+        let weak_ui = main_window.as_weak();
+        let timer = slint::Timer::default();
+        timer.start(
+            slint::TimerMode::Repeated,
+            std::time::Duration::from_millis(10),
+            move || {
+                while let Ok(event) = tray_rx.try_recv() {
+                    match event {
+                        TrayEvent::ShowWindow => {
+                            println!("Show window event received in Slint thread");
+                            if let Some(ui) = weak_ui.upgrade() {
+                                ui.show().unwrap();
+                            }
+                        }
+                        TrayEvent::Exit => {
+                            println!("Exit event received in Slint thread");
+                            slint::quit_event_loop().ok();
+                        }
+                    }
+                }
+            },
+        );
+
+        // Run Slint event loop
+        slint::run_event_loop_until_quit()
+    })
+}
+
+fn setup_event_handling(_slint_tx: Sender<SlintEvent>) {
+    // All cross-thread communication is now handled within the thread functions
+    // This function is kept for future extensibility
+    println!("Event handling setup complete.");
+}
+
+fn on_close_requested(win: slint::Weak<MainWindow>) -> slint::CloseRequestResponse {
+    if let Some(win) = win.upgrade() {
+        win.hide().unwrap();
+        println!("Main window has been hidden.");
+    }
+    slint::CloseRequestResponse::HideWindow
+}
+
+fn on_quit(slint_tx: Sender<SlintEvent>) {
+    println!("Quit event received. Closing application.");
+    slint_tx.send(SlintEvent::Quit).ok();
+    slint::quit_event_loop().unwrap();
+}
+
+fn load_and_invert_icon(path: &str) -> (tray_icon::Icon, tray_icon::Icon) {
+    let mut img = image::open(path)
+        .expect("Failed to open icon path")
+        .into_rgba8();
+
+    let (width, height) = img.dimensions();
+    let original_rgba = img.to_vec();
+    let original_icon =
+        tray_icon::Icon::from_rgba(original_rgba, width, height).expect("Failed to create original icon");
+
+    image::imageops::invert(&mut img);
+
+    let inverted_rgba = img.into_raw();
+    let inverted_icon =
+        tray_icon::Icon::from_rgba(inverted_rgba, width, height).expect("Failed to create inverted icon");
+
+    (original_icon, inverted_icon)
 }
