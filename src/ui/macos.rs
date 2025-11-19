@@ -26,27 +26,7 @@ pub fn run_macos() -> Result<(), slint::PlatformError> {
 }
 
 fn create_tray_icon() -> (TrayIcon, MenuEventReceiver, MenuItem, MenuItem) {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tray_icon.png");
-    let (dark_icon, light_icon) = load_and_invert_icon(path);
-
-    let icon = match dark_light::detect() {
-        Ok(dark_light::Mode::Dark) => light_icon,
-        _ => dark_icon,
-    };
-
-    let tray_menu = Menu::new();
-    let show_item = MenuItem::new("Show Window", true, None);
-    tray_menu.append(&show_item).unwrap();
-    let exit_item = MenuItem::new("Exit", true, None);
-    tray_menu.append(&exit_item).unwrap();
-
-    let tray_icon = TrayIconBuilder::new()
-        .with_menu(Box::new(tray_menu))
-        .with_tooltip("Tray Test with Slint")
-        .with_icon(icon)
-        .build()
-        .unwrap();
-
+    let (tray_icon, show_item, exit_item, show_id, exit_id) = create_tray_icon();
     println!("Tray icon has been set up.");
 
     let menu_channel = MenuEvent::receiver();

@@ -6,7 +6,7 @@ use tray_icon::{
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use crate::ui::common::{load_and_invert_icon, on_close_requested};
+use crate::ui::common::{create_tray_icon, load_and_invert_icon, on_close_requested};
 
 slint::include_modules!();
 
@@ -32,9 +32,6 @@ pub fn run_linux() -> Result<(), slint::PlatformError> {
     // Start Slint UI thread
     let slint_handle = instantiate_ui_linux(tray_rx, slint_tx.clone());
 
-    // Set up cross-thread event handling
-    setup_event_handling_linux(slint_tx);
-
     println!("Application is running. Both event loops are active.");
 
     // Wait for threads to complete
@@ -54,30 +51,7 @@ fn create_tray_icon_linux(
         // Initialize GTK in this thread
         gtk::init().expect("Failed to initialize GTK");
 
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tray_icon.png");
-        let (dark_icon, light_icon) = load_and_invert_icon(path);
-
-        let icon = match dark_light::detect() {
-            Ok(dark_light::Mode::Dark) => light_icon,
-            _ => dark_icon,
-        };
-
-        let tray_menu = Menu::new();
-        let show_item = MenuItem::new("Show Window", true, None);
-        let exit_item = MenuItem::new("Exit", true, None);
-
-        let show_id = show_item.id().clone();
-        let exit_id = exit_item.id().clone();
-
-        tray_menu.append(&show_item).unwrap();
-        tray_menu.append(&exit_item).unwrap();
-
-        let tray_icon = TrayIconBuilder::new()
-            .with_menu(Box::new(tray_menu))
-            .with_tooltip("Tray Test with Slint")
-            .with_icon(icon)
-            .build()
-            .unwrap();
+        let (tray_icon, show_item, exit_item, show_id, exit_id) = create_tray_icon();
 
         println!("Tray icon has been set up in GTK thread.");
 
@@ -161,12 +135,6 @@ fn instantiate_ui_linux(
         // Run Slint event loop
         slint::run_event_loop_until_quit()
     })
-}
-
-fn setup_event_handling_linux(_slint_tx: Sender<SlintEvent>) {
-    // All cross-thread communication is now handled within the thread functions
-    // This function is kept for future extensibility
-    println!("Event handling setup complete.");
 }
 
 fn on_quit_linux(slint_tx: Sender<SlintEvent>) {
