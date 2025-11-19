@@ -48,7 +48,7 @@ fn create_tray_icon_linux(
         // Initialize GTK in this thread
         gtk::init().expect("Failed to initialize GTK");
 
-        let (tray_icon, show_item, exit_item, show_id, exit_id) = create_tray_icon();
+        let (tray_icon, _show_item, _exit_item, show_id, exit_id) = create_tray_icon();
 
         println!("Tray icon has been set up in GTK thread.");
 
