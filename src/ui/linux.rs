@@ -3,25 +3,14 @@ use tray_icon::menu::MenuEvent;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use crate::ui::common::{create_tray_icon, on_close_requested};
+use crate::ui::common::{create_tray_icon, on_close_requested, GuiEvent};
 
 slint::include_modules!();
 
-// Messages from GTK thread to Slint thread
-enum TrayEvent {
-    ShowWindow,
-    Exit,
-}
-
-// Messages from Slint thread to GTK thread
-enum SlintEvent {
-    Quit,
-}
-
 pub fn run_linux() -> Result<(), slint::PlatformError> {
     // Create communication channels
-    let (tray_tx, tray_rx) = mpsc::channel::<TrayEvent>();
-    let (slint_tx, slint_rx) = mpsc::channel::<SlintEvent>();
+    let (tray_tx, tray_rx) = mpsc::channel::<GuiEvent>();
+    let (slint_tx, slint_rx) = mpsc::channel::<GuiEvent>();
 
     // Start GTK tray thread
     let gtk_handle = create_tray_icon_linux(tray_tx, slint_rx);
@@ -41,8 +30,8 @@ pub fn run_linux() -> Result<(), slint::PlatformError> {
 }
 
 fn create_tray_icon_linux(
-    tray_tx: Sender<TrayEvent>,
-    slint_rx: Receiver<SlintEvent>,
+    tray_tx: Sender<GuiEvent>,
+    slint_rx: Receiver<GuiEvent>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         // Initialize GTK in this thread
@@ -68,16 +57,16 @@ fn create_tray_icon_linux(
             while let Ok(event) = menu_channel.try_recv() {
                 if event.id == show_id {
                     println!("Show menu item clicked in GTK thread");
-                    tray_tx.send(TrayEvent::ShowWindow).ok();
+                    tray_tx.send(GuiEvent::TrayShowWindow).ok();
                 } else if event.id == exit_id {
                     println!("Exit menu item clicked in GTK thread");
-                    tray_tx.send(TrayEvent::Exit).ok();
+                    tray_tx.send(GuiEvent::TrayExit).ok();
                     return; // Exit GTK thread
                 }
             }
 
             // Check for messages from Slint thread
-            if let Ok(SlintEvent::Quit) = slint_rx.try_recv() {
+            if let Ok(GuiEvent::AppQuit) = slint_rx.try_recv() {
                 println!("Quit signal received in GTK thread");
                 return; // Exit GTK thread
             }
@@ -89,8 +78,8 @@ fn create_tray_icon_linux(
 }
 
 fn instantiate_ui_linux(
-    tray_rx: Receiver<TrayEvent>,
-    slint_tx: Sender<SlintEvent>,
+    tray_rx: Receiver<GuiEvent>,
+    slint_tx: Sender<GuiEvent>,
 ) -> thread::JoinHandle<Result<(), slint::PlatformError>> {
     thread::spawn(move || {
         let main_window = MainWindow::new().unwrap();
@@ -114,13 +103,13 @@ fn instantiate_ui_linux(
             move || {
                 while let Ok(event) = tray_rx.try_recv() {
                     match event {
-                        TrayEvent::ShowWindow => {
+                        GuiEvent::TrayShowWindow => {
                             println!("Show window event received in Slint thread");
                             if let Some(ui) = weak_ui.upgrade() {
                                 ui.show().unwrap();
                             }
                         }
-                        TrayEvent::Exit => {
+                        GuiEvent::TrayExit | GuiEvent::AppQuit => {
                             println!("Exit event received in Slint thread");
                             slint::quit_event_loop().ok();
                         }
@@ -129,13 +118,16 @@ fn instantiate_ui_linux(
             },
         );
 
+        // Open window before starting the event loop
+        main_window.show().unwrap();
+
         // Run Slint event loop
         slint::run_event_loop_until_quit()
     })
 }
 
-fn on_quit_linux(slint_tx: Sender<SlintEvent>) {
+fn on_quit_linux(slint_tx: Sender<GuiEvent>) {
     println!("Quit event received. Closing application.");
-    slint_tx.send(SlintEvent::Quit).ok();
+    slint_tx.send(GuiEvent::AppQuit).ok();
     slint::quit_event_loop().unwrap();
 }

@@ -3,7 +3,8 @@ use slint::ComponentHandle;
 use crate::ui::MainWindow;
 
 use tray_icon::{
-    menu::{Menu, MenuId, MenuItem}, TrayIconBuilder,
+    menu::{Menu, MenuId, MenuItem},
+    TrayIconBuilder,
 };
 
 pub fn on_close_requested(win: slint::Weak<MainWindow>) -> slint::CloseRequestResponse {
@@ -60,4 +61,11 @@ pub fn create_tray_icon() -> (tray_icon::TrayIcon, MenuItem, MenuItem, MenuId, M
         .unwrap();
 
     (tray_icon, show_item, exit_item, show_id, exit_id)
+}
+
+// Messages from GTK thread to Slint thread
+pub enum GuiEvent {
+    TrayShowWindow,
+    TrayExit,
+    AppQuit,
 }

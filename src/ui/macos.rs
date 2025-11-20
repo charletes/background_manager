@@ -69,7 +69,8 @@ fn handle_menu_events(
     if let Ok(event) = menu_channel.try_recv() {
         if let Some(win) = main_window.upgrade() {
             if event.id == exit_item.id() {
-                win.invoke_quit();
+                // win.invoke_quit();
+                on_quit();
             } else if event.id == show_item.id() {
                 win.show().unwrap();
                 println!("Main window has been shown.");
