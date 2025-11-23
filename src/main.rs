@@ -2,6 +2,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
 
+mod image_proc;
 mod ui;
 
 #[derive(Debug, Clone)]
@@ -25,6 +26,11 @@ fn main() -> Result<(), slint::PlatformError> {
 
 fn start_daemon_thread(rx: Receiver<DaemonAction>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
+        // Create thumbnails
+        if let Err(e) = image_proc::generate_thumbnails() {
+            eprintln!("Error generating thumbnails: {}", e);
+        }
+
         loop {
             // Check the queue with a timeout
             match rx.recv_timeout(Duration::from_millis(1000)) {

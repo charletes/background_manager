@@ -640,6 +640,7 @@ dependencies = [
  "image 0.25.8",
  "more-wallpapers",
  "photon-rs",
+ "rayon",
  "regex",
  "slint",
  "slint-build",
